@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: markeb-robot
+
+# Robot Configuration
+markeb:
+  robot:
+    # Gateway server host
+    gateway-host: 127.0.0.1
+    # Gateway server port
+    gateway-port: 7000
+    # Number of robots
+    robot-count: 1
+    # Robot ID prefix
+    robot-id-prefix: robot_
+    # Auto reconnect on disconnect
+    auto-reconnect: true
+    # Reconnect delay in seconds
+    reconnect-delay-seconds: 5
+    # Max reconnect attempts
+    max-reconnect-attempts: 10
+    # Request timeout in milliseconds
+    request-timeout-ms: 30000
+    # Auto execute actions with autoExecute=true
+    auto-login: true
+    # Interval between robot connections in milliseconds
+    login-interval-ms: 100
+    # Console configuration
+    console:
+      # Enable interactive console
+      enabled: true
+
+logging:
+  level:
+    root: INFO
+    org.markeb.robot: DEBUG

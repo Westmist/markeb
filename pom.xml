@@ -59,6 +59,7 @@
         <module>markeb-node</module>
         <module>markeb-mesh</module>
         <module>markeb-meta</module>
+        <module>markeb-robot</module>
     </modules>
 
     <build>
