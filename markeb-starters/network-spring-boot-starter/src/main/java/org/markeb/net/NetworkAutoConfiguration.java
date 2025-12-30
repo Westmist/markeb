@@ -31,8 +31,10 @@ public class NetworkAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(IMessagePool.class)
-    public IMessagePool<?> messagePool(IGameParser<?> gameParser) {
-        return new ProtoBuffGameMessagePool(gameParser);
+    public IMessagePool<?> messagePool(IGameParser<?> gameParser, NetworkProperties networkProperties) {
+        // 根据协议类型选择编解码器
+        boolean gatewayInternalMode = networkProperties.getProtocol() == org.markeb.net.protocol.ProtocolType.GATEWAY_INTERNAL;
+        return new ProtoBuffGameMessagePool(gameParser, gatewayInternalMode);
     }
 
     @Bean

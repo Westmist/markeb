@@ -2,6 +2,8 @@ package org.markeb.net.msg;
 
 import org.markeb.net.codec.ProtoBuffGameDecoder;
 import org.markeb.net.codec.ProtoBuffGameEncoder;
+import org.markeb.net.codec.ProtoBuffGatewayDecoder;
+import org.markeb.net.codec.ProtoBuffGatewayEncoder;
 import org.markeb.net.register.GameActorContext;
 import org.markeb.net.register.IContextHandle;
 import com.google.protobuf.Message;
@@ -14,11 +16,23 @@ import java.util.Map;
 public class ProtoBuffGameMessagePool implements IMessagePool<Message> {
 
     private final IGameParser<?> protoBuffParser;
+    private final boolean gatewayMode;
 
     private static final Map<Integer, IContextHandle<? extends GameActorContext, Message>> handlerPool = new HashMap<>();
 
     public ProtoBuffGameMessagePool(IGameParser<?> protoBuffParser) {
+        this(protoBuffParser, false);
+    }
+
+    /**
+     * 创建消息池
+     *
+     * @param protoBuffParser 消息解析器
+     * @param gatewayMode     是否为网关模式（接收网关转发的消息）
+     */
+    public ProtoBuffGameMessagePool(IGameParser<?> protoBuffParser, boolean gatewayMode) {
         this.protoBuffParser = protoBuffParser;
+        this.gatewayMode = gatewayMode;
     }
 
     @Override
@@ -29,11 +43,17 @@ public class ProtoBuffGameMessagePool implements IMessagePool<Message> {
 
     @Override
     public MessageToByteEncoder<Message> encoder() {
+        if (gatewayMode) {
+            return new ProtoBuffGatewayEncoder(messageParser());
+        }
         return new ProtoBuffGameEncoder(messageParser());
     }
 
     @Override
     public ByteToMessageDecoder decoder() {
+        if (gatewayMode) {
+            return new ProtoBuffGatewayDecoder(messageParser());
+        }
         return new ProtoBuffGameDecoder(messageParser());
     }
 

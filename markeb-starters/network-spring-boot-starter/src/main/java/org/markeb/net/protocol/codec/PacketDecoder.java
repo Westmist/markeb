@@ -1,6 +1,7 @@
 package org.markeb.net.protocol.codec;
 
 import org.markeb.net.protocol.GameServerPacket;
+import org.markeb.net.protocol.GatewayInternalPacket;
 import org.markeb.net.protocol.GatewayPacket;
 import org.markeb.net.protocol.Packet;
 import org.markeb.net.protocol.ProtocolType;
@@ -38,6 +39,7 @@ public class PacketDecoder extends LengthFieldBasedFrameDecoder {
         try {
             return switch (protocolType) {
                 case GATEWAY -> decodeGatewayPacket(frame);
+                case GATEWAY_INTERNAL -> decodeGatewayInternalPacket(frame, ctx);
                 case GAME_SERVER -> decodeGameServerPacket(frame);
             };
         } finally {
@@ -58,6 +60,21 @@ public class PacketDecoder extends LengthFieldBasedFrameDecoder {
         frame.readBytes(body);
 
         return new GatewayPacket(messageId, seq, magicNum, body);
+    }
+
+    /**
+     * 解码网关内部协议
+     * 4 sessionId + 4 msgId + 4 seq + body
+     */
+    private Packet decodeGatewayInternalPacket(ByteBuf frame, ChannelHandlerContext ctx) {
+        int sessionId = frame.readInt();
+        int messageId = frame.readInt();
+        int seqInt = frame.readInt();
+
+        byte[] body = new byte[frame.readableBytes()];
+        frame.readBytes(body);
+
+        return new GatewayInternalPacket(sessionId, messageId, seqInt, body);
     }
 
     /**

@@ -24,7 +24,7 @@ markeb:
     enabled: true
     port: 8000
     transport: TCP
-    protocol: GATEWAY
+    protocol: GATEWAY_INTERNAL
     codec: PROTOBUF
     max-frame-length: 1048576  # 1MB
     netty:
