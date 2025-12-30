@@ -1,5 +1,7 @@
 package org.markeb.gateway.route;
 
+import org.markeb.gateway.route.strategy.RouteStrategy;
+import org.markeb.gateway.route.strategy.RouteStrategyFactory;
 import org.markeb.gateway.session.GatewaySession;
 import org.markeb.service.registry.ServiceInstance;
 import org.markeb.service.registry.ServiceRegistry;
@@ -12,11 +14,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 节点路由器
  * 负责将请求路由到合适的游戏节点
+ * 使用策略模式支持多种负载均衡策略
  */
 @Component
 public class NodeRouter {
@@ -28,52 +30,32 @@ public class NodeRouter {
     @Autowired(required = false)
     private ServiceRegistry serviceRegistry;
 
+    @Autowired
+    private RouteStrategyFactory strategyFactory;
+
     /**
      * 静态节点配置（当没有服务注册时使用）
      */
     private final Map<String, String> staticNodes = new ConcurrentHashMap<>();
 
     /**
-     * 轮询计数器（用于负载均衡）
-     */
-    private final AtomicInteger roundRobinCounter = new AtomicInteger(0);
-
-    /**
-     * 路由策略
-     */
-    public enum RouteStrategy {
-        /**
-         * 轮询
-         */
-        ROUND_ROBIN,
-
-        /**
-         * 随机
-         */
-        RANDOM,
-
-        /**
-         * 一致性哈希（根据玩家ID）
-         */
-        CONSISTENT_HASH,
-
-        /**
-         * 指定节点
-         */
-        DESIGNATED
-    }
-
-    /**
      * 为会话选择节点
      *
-     * @param session  网关会话
-     * @param strategy 路由策略
+     * @param session      网关会话
+     * @param strategyType 路由策略类型
      * @return 节点地址 (host:port)
      */
-    public Optional<String> selectNode(GatewaySession session, RouteStrategy strategy) {
+    public Optional<String> selectNode(GatewaySession session, RouteStrategy.Type strategyType) {
         // 如果会话已绑定节点，直接返回
         if (session.getNodeId() != null) {
             return getNodeAddress(session.getNodeId());
+        }
+
+        // 获取路由策略
+        RouteStrategy strategy = strategyFactory.getStrategy(strategyType);
+        if (strategy == null) {
+            log.error("No route strategy available for type: {}", strategyType);
+            return Optional.empty();
         }
 
         // 获取可用节点列表
@@ -87,17 +69,13 @@ public class NodeRouter {
             return Optional.empty();
         }
 
-        // 根据策略选择节点
-        ServiceInstance selected = switch (strategy) {
-            case ROUND_ROBIN -> selectByRoundRobin(nodes);
-            case RANDOM -> selectByRandom(nodes);
-            case CONSISTENT_HASH -> selectByConsistentHash(nodes, session.getPlayerId());
-            case DESIGNATED -> nodes.get(0); // 默认选第一个
-        };
-
+        // 使用策略选择节点
+        ServiceInstance selected = strategy.select(nodes, session);
         if (selected != null) {
             String nodeId = selected.getInstanceId();
             session.setNodeId(nodeId);
+            log.debug("Selected node {} using strategy {} for session {}",
+                    nodeId, strategy.getType(), session.getSessionId());
             return Optional.of(selected.getHost() + ":" + selected.getPort());
         }
 
@@ -134,34 +112,6 @@ public class NodeRouter {
     }
 
     /**
-     * 轮询选择
-     */
-    private ServiceInstance selectByRoundRobin(List<ServiceInstance> nodes) {
-        int index = Math.abs(roundRobinCounter.getAndIncrement() % nodes.size());
-        return nodes.get(index);
-    }
-
-    /**
-     * 随机选择
-     */
-    private ServiceInstance selectByRandom(List<ServiceInstance> nodes) {
-        int index = (int) (Math.random() * nodes.size());
-        return nodes.get(index);
-    }
-
-    /**
-     * 一致性哈希选择
-     */
-    private ServiceInstance selectByConsistentHash(List<ServiceInstance> nodes, Long playerId) {
-        if (playerId == null) {
-            return selectByRoundRobin(nodes);
-        }
-        int hash = Math.abs(Long.hashCode(playerId));
-        int index = hash % nodes.size();
-        return nodes.get(index);
-    }
-
-    /**
      * 从静态配置选择节点
      */
     private Optional<String> selectFromStaticNodes(GatewaySession session, RouteStrategy strategy) {
@@ -170,27 +120,16 @@ public class NodeRouter {
         }
 
         List<String> nodeIds = List.copyOf(staticNodes.keySet());
-        String selectedId = switch (strategy) {
-            case ROUND_ROBIN -> {
-                int index = Math.abs(roundRobinCounter.getAndIncrement() % nodeIds.size());
-                yield nodeIds.get(index);
-            }
-            case RANDOM -> {
-                int index = (int) (Math.random() * nodeIds.size());
-                yield nodeIds.get(index);
-            }
-            case CONSISTENT_HASH -> {
-                if (session.getPlayerId() == null) {
-                    yield nodeIds.get(0);
-                }
-                int hash = Math.abs(Long.hashCode(session.getPlayerId()));
-                yield nodeIds.get(hash % nodeIds.size());
-            }
-            case DESIGNATED -> nodeIds.get(0);
-        };
+        String selectedId = strategy.selectFromNodeIds(nodeIds, session);
 
-        session.setNodeId(selectedId);
-        return Optional.ofNullable(staticNodes.get(selectedId));
+        if (selectedId != null) {
+            session.setNodeId(selectedId);
+            log.debug("Selected static node {} using strategy {} for session {}",
+                    selectedId, strategy.getType(), session.getSessionId());
+            return Optional.ofNullable(staticNodes.get(selectedId));
+        }
+
+        return Optional.empty();
     }
 
     /**
@@ -206,6 +145,13 @@ public class NodeRouter {
      */
     public void removeStaticNode(String nodeId) {
         staticNodes.remove(nodeId);
+        log.info("Removed static node: {}", nodeId);
+    }
+
+    /**
+     * 获取所有静态节点
+     */
+    public Map<String, String> getStaticNodes() {
+        return Map.copyOf(staticNodes);
     }
 }
-

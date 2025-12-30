@@ -2,6 +2,7 @@ package org.markeb.gateway.handler;
 
 import org.markeb.gateway.backend.BackendChannelManager;
 import org.markeb.gateway.route.NodeRouter;
+import org.markeb.gateway.route.strategy.RouteStrategy;
 import org.markeb.gateway.session.GatewaySession;
 import org.markeb.gateway.session.SessionManager;
 import org.markeb.net.gateway.GatewayPacket;
@@ -80,7 +81,7 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
         session.setState(GatewaySession.SessionState.AUTHENTICATING);
 
         // 选择节点
-        nodeRouter.selectNode(session, NodeRouter.RouteStrategy.ROUND_ROBIN)
+        nodeRouter.selectNode(session, RouteStrategy.Type.ROUND_ROBIN)
                 .ifPresentOrElse(
                         nodeAddress -> {
                             // 转发登录请求到后端
