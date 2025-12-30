@@ -13,22 +13,37 @@ import io.netty.handler.timeout.IdleStateEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * 前端连接处理器
- * 处理客户端到网关的连接和消息
+ * 处理客户端到网关的连接、消息和心跳
  */
 public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> {
 
     private static final Logger log = LoggerFactory.getLogger(FrontendHandler.class);
 
     /**
+     * 心跳消息ID（保留，框架内部使用）
+     */
+    private static final int HEARTBEAT_REQUEST_ID = 0;
+    private static final int HEARTBEAT_RESPONSE_ID = 1;
+
+    /**
      * 登录消息ID（需要根据实际协议定义）
      */
     private static final int MSG_ID_LOGIN = 11000;
 
+    /**
+     * 最大丢失心跳次数
+     */
+    private static final int MAX_MISSED_HEARTBEATS = 3;
+
     private final SessionManager sessionManager;
     private final BackendChannelManager backendChannelManager;
     private final NodeRouter nodeRouter;
+    private final AtomicInteger missedHeartbeats = new AtomicInteger(0);
 
     private GatewaySession session;
 
@@ -55,7 +70,20 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
             return;
         }
 
+        // 收到任何消息都重置丢失计数
+        missedHeartbeats.set(0);
         session.updateActiveTime();
+
+        // 处理心跳请求（框架内部，业务层无感知）
+        if (msg.getMsgId() == HEARTBEAT_REQUEST_ID) {
+            handleHeartbeatRequest(ctx, msg);
+            return;
+        }
+
+        // 心跳响应不应该从客户端收到，忽略
+        if (msg.getMsgId() == HEARTBEAT_RESPONSE_ID) {
+            return;
+        }
 
         // 处理特殊消息（如登录）
         if (msg.getMsgId() == MSG_ID_LOGIN) {
@@ -72,6 +100,27 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
 
         // 路由到后端节点
         routeToBackend(msg);
+    }
+
+    /**
+     * 处理心跳请求
+     */
+    private void handleHeartbeatRequest(ChannelHandlerContext ctx, GatewayPacket request) {
+        long clientTime = 0;
+        byte[] requestBody = request.getBody();
+        if (requestBody != null && requestBody.length >= 8) {
+            clientTime = ByteBuffer.wrap(requestBody).getLong();
+        }
+
+        // 构建响应：serverTime (8 bytes) + clientTime (8 bytes)
+        byte[] body = new byte[16];
+        ByteBuffer buffer = ByteBuffer.wrap(body);
+        buffer.putLong(System.currentTimeMillis());
+        buffer.putLong(clientTime);
+
+        GatewayPacket response = new GatewayPacket(0, HEARTBEAT_RESPONSE_ID, request.getSeq(), body);
+        ctx.writeAndFlush(response);
+        log.debug("Heartbeat response sent to session: {}", session.getSessionId());
     }
 
     /**
@@ -140,9 +189,16 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof IdleStateEvent idleEvent) {
             if (idleEvent.state() == IdleState.READER_IDLE) {
-                log.info("Client idle timeout, closing session: {}",
-                        session != null ? session.getSessionId() : "null");
-                ctx.close();
+                // 读空闲：客户端长时间没有发送任何消息（包括心跳）
+                int missed = missedHeartbeats.incrementAndGet();
+                if (missed >= MAX_MISSED_HEARTBEATS) {
+                    log.info("Client idle timeout, closing session: {}",
+                            session != null ? session.getSessionId() : "null");
+                    ctx.close();
+                } else {
+                    log.debug("Client reader idle, session: {}, missed: {}",
+                            session != null ? session.getSessionId() : "null", missed);
+                }
             }
         }
         super.userEventTriggered(ctx, evt);

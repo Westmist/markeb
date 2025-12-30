@@ -151,7 +151,8 @@ public class BackendChannelManager {
                     @Override
                     protected void initChannel(SocketChannel ch) {
                         ch.pipeline()
-                                .addLast(new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS))
+                                // 读空闲60秒检测连接存活，写空闲30秒发送心跳
+                                .addLast(new IdleStateHandler(60, 30, 0, TimeUnit.SECONDS))
                                 .addLast(new GatewayDecoder(false))
                                 .addLast(new GatewayEncoder(false))
                                 .addLast(new BackendChannelHandler(BackendChannelManager.this, nodeAddress));

@@ -78,12 +78,30 @@ public class NetworkProperties {
         /**
          * 写空闲时间（秒）
          */
-        private long writerIdleTime = 0;
+        private long writerIdleTime = 30;
 
         /**
          * 读写空闲时间（秒）
          */
         private long allIdleTime = 0;
+    }
+
+    /**
+     * 心跳配置
+     */
+    private HeartbeatConfig heartbeat = new HeartbeatConfig();
+
+    @Data
+    public static class HeartbeatConfig {
+        /**
+         * 是否启用心跳
+         */
+        private boolean enabled = true;
+
+        /**
+         * 最大丢失心跳次数，超过后断开连接
+         */
+        private int maxMissedHeartbeats = 3;
     }
 
     @Data

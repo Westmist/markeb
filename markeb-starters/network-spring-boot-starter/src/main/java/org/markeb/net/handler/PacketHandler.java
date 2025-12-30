@@ -41,13 +41,13 @@ public class PacketHandler extends SimpleChannelInboundHandler<Packet> {
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+        // 空闲事件由 HeartbeatHandler 处理
+        // 如果没有配置心跳处理器，这里作为兜底处理
         if (evt instanceof IdleStateEvent idleEvent) {
-            log.warn("Channel idle: {}, state: {}", ctx.channel().remoteAddress(), idleEvent.state());
-            // 可以在这里处理心跳超时
-            ctx.close();
-        } else {
-            super.userEventTriggered(ctx, evt);
+            log.warn("Channel idle (no heartbeat handler): {}, state: {}",
+                    ctx.channel().remoteAddress(), idleEvent.state());
         }
+        super.userEventTriggered(ctx, evt);
     }
 
     @Override

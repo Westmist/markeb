@@ -1,7 +1,9 @@
 package org.markeb.game.handler;
 
 import org.markeb.game.actor.Player;
+import org.markeb.game.entity.TestEntity;
 import org.markeb.net.register.MessageHandler;
+import org.markeb.persistent.DataCenter;
 import org.markeb.proto.message.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,12 +18,23 @@ public class TestHandler {
     public Test.ResTestMessage test(Player player, Test.ReqTestMessage reqTestMessage) {
         log.info("TestHandler test method called with message: {}", reqTestMessage);
 
-        // TODO: 使用新的 persistent-spring-boot-starter 实现持久化逻辑
-        // DataCenter.saveAsync(entity);
-
-        return Test.ResTestMessage.newBuilder()
-                .setResult(true)
-                .build();
+        // Create and save test entity
+        TestEntity entity = new TestEntity(reqTestMessage.getId(), reqTestMessage.getName());
+        
+        try {
+            // Save entity asynchronously
+            DataCenter.saveAsync(entity);
+            log.info("TestEntity saved async: id={}, name={}", entity.getId(), entity.getName());
+            
+            return Test.ResTestMessage.newBuilder()
+                    .setResult(true)
+                    .build();
+        } catch (Exception e) {
+            log.error("Failed to save TestEntity: id={}, name={}", entity.getId(), entity.getName(), e);
+            return Test.ResTestMessage.newBuilder()
+                    .setResult(false)
+                    .build();
+        }
     }
 
     @MessageHandler

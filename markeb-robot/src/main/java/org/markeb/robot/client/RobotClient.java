@@ -6,6 +6,7 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.timeout.IdleStateHandler;
 import org.markeb.robot.codec.RobotDecoder;
 import org.markeb.robot.codec.RobotEncoder;
 import org.markeb.robot.handler.RobotClientHandler;
@@ -59,6 +60,12 @@ public class RobotClient {
     private int maxReconnectAttempts = 10;
     private int reconnectAttempts = 0;
 
+    /**
+     * 心跳配置（秒）
+     */
+    private int readerIdleTime = 60;
+    private int writerIdleTime = 30;
+
     public RobotClient(String robotId, String host, int port, RobotMessageParser messageParser) {
         this.robotId = robotId;
         this.host = host;
@@ -84,6 +91,8 @@ public class RobotClient {
                     @Override
                     protected void initChannel(SocketChannel ch) {
                         ch.pipeline()
+                                // 空闲检测：读空闲用于检测连接是否存活，写空闲用于触发心跳
+                                .addLast(new IdleStateHandler(readerIdleTime, writerIdleTime, 0, TimeUnit.SECONDS))
                                 .addLast(new RobotDecoder())
                                 .addLast(new RobotEncoder(messageParser))
                                 .addLast(new RobotClientHandler(RobotClient.this));
@@ -286,6 +295,8 @@ public class RobotClient {
                     @Override
                     protected void initChannel(SocketChannel ch) {
                         ch.pipeline()
+                                // 空闲检测：读空闲用于检测连接是否存活，写空闲用于触发心跳
+                                .addLast(new IdleStateHandler(readerIdleTime, writerIdleTime, 0, TimeUnit.SECONDS))
                                 .addLast(new RobotDecoder())
                                 .addLast(new RobotEncoder(messageParser))
                                 .addLast(new RobotClientHandler(RobotClient.this));
@@ -323,6 +334,32 @@ public class RobotClient {
 
     public void setMaxReconnectAttempts(int maxReconnectAttempts) {
         this.maxReconnectAttempts = maxReconnectAttempts;
+    }
+
+    public void setReaderIdleTime(int readerIdleTime) {
+        this.readerIdleTime = readerIdleTime;
+    }
+
+    public void setWriterIdleTime(int writerIdleTime) {
+        this.writerIdleTime = writerIdleTime;
+    }
+
+    /**
+     * 发送心跳包（框架内部使用）
+     */
+    public void sendHeartbeat() {
+        if (!isConnected()) {
+            return;
+        }
+        // 使用保留的消息ID 0 作为心跳请求
+        RobotPacket heartbeat = RobotPacket.createHeartbeatRequest();
+        channel.writeAndFlush(heartbeat).addListener((ChannelFutureListener) f -> {
+            if (f.isSuccess()) {
+                log.debug("[{}] Heartbeat sent", robotId);
+            } else {
+                log.warn("[{}] Failed to send heartbeat", robotId, f.cause());
+            }
+        });
     }
 }
 

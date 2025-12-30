@@ -48,6 +48,13 @@ public class RegistryProperties {
     private String serviceName;
 
     /**
+     * 服务实例ID
+     * <p>默认：null（自动生成为 serviceName-host-port）</p>
+     * <p>建议配置为稳定的值，避免服务重启后 session 绑定失效</p>
+     */
+    private String instanceId;
+
+    /**
      * 服务主机地址
      * <p>默认：null（自动获取本机 IP）</p>
      */

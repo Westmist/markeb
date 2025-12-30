@@ -11,7 +11,6 @@ import org.springframework.context.annotation.Configuration;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.UUID;
 
 /**
  * 服务自动注册器
@@ -83,8 +82,11 @@ public class ServiceAutoRegistrar {
             // 解析主机地址
             String host = resolveHost();
 
-            String instanceId = serviceName + "-" + host + "-" + port
-                    + "-" + UUID.randomUUID().toString().substring(0, 8);
+            // 使用稳定的 instanceId，避免服务重启后 session 绑定失效
+            // 如果配置了自定义 instanceId 则使用配置的，否则使用 serviceName-host-port
+            String instanceId = properties.getInstanceId() != null && !properties.getInstanceId().isEmpty()
+                    ? properties.getInstanceId()
+                    : serviceName + "-" + host + "-" + port;
 
             registeredInstance = ServiceInstance.builder()
                     .instanceId(instanceId)

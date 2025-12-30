@@ -3,6 +3,9 @@ package org.markeb.net.config;
 import org.markeb.net.INetworkServer;
 import org.markeb.net.handler.MessageDispatcher;
 import org.markeb.net.handler.PacketHandler;
+import org.markeb.net.heartbeat.HeartbeatHandler;
+import org.markeb.net.heartbeat.HeartbeatMessageFactory;
+import org.markeb.net.heartbeat.PacketHeartbeatFactory;
 import org.markeb.net.protocol.ProtocolType;
 import org.markeb.net.protocol.codec.PacketDecoder;
 import org.markeb.net.protocol.codec.PacketEncoder;
@@ -80,19 +83,31 @@ public class NetworkAutoConfiguration {
     }
 
     /**
+     * 心跳消息工厂
+     * 根据协议类型自动选择对应的心跳实现
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public HeartbeatMessageFactory heartbeatMessageFactory(NetworkProperties properties) {
+        return new PacketHeartbeatFactory(properties.getProtocol());
+    }
+
+    /**
      * Channel 初始化器
      */
     @Bean
     @ConditionalOnMissingBean
     public ChannelInitializer<SocketChannel> channelInitializer(
             NetworkProperties properties,
-            MessageDispatcher messageDispatcher) {
+            MessageDispatcher messageDispatcher,
+            HeartbeatMessageFactory heartbeatMessageFactory) {
 
         ProtocolType protocolType = properties.getProtocol();
         NetworkProperties.NettyConfig nettyConfig = properties.getNetty();
+        NetworkProperties.HeartbeatConfig heartbeatConfig = properties.getHeartbeat();
 
-        log.info("Creating ChannelInitializer with protocol: {}, codec: {}",
-                protocolType, properties.getCodec());
+        log.info("Creating ChannelInitializer with protocol: {}, codec: {}, heartbeat: {}",
+                protocolType, properties.getCodec(), heartbeatConfig.isEnabled());
 
         return new ChannelInitializer<>() {
             @Override
@@ -109,6 +124,12 @@ public class NetworkAutoConfiguration {
                 ch.pipeline().addLast("decoder",
                         new PacketDecoder(protocolType, properties.getMaxFrameLength()));
                 ch.pipeline().addLast("encoder", new PacketEncoder());
+
+                // 心跳处理（在业务处理器之前）
+                if (heartbeatConfig.isEnabled()) {
+                    ch.pipeline().addLast("heartbeat",
+                            new HeartbeatHandler(heartbeatMessageFactory, heartbeatConfig.getMaxMissedHeartbeats()));
+                }
 
                 // 消息处理
                 ch.pipeline().addLast("handler", new PacketHandler(messageDispatcher));
