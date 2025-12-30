@@ -23,7 +23,7 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
     /**
      * 登录消息ID（需要根据实际协议定义）
      */
-    private static final int MSG_ID_LOGIN = 1001;
+    private static final int MSG_ID_LOGIN = 11000;
 
     private final SessionManager sessionManager;
     private final BackendChannelManager backendChannelManager;
@@ -64,7 +64,7 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
 
         // 检查是否已认证
         if (!session.isAuthenticated()) {
-            log.warn("Session {} not authenticated, dropping msgId {}", 
+            log.warn("Session {} not authenticated, dropping msgId {}",
                     session.getSessionId(), msg.getMsgId());
             return;
         }
@@ -87,7 +87,7 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
                             backendChannelManager.forward(nodeAddress, session, packet)
                                     .whenComplete((v, ex) -> {
                                         if (ex != null) {
-                                            log.error("Forward login failed for session {}", 
+                                            log.error("Forward login failed for session {}",
                                                     session.getSessionId(), ex);
                                             // 可以发送错误响应给客户端
                                         }
@@ -109,13 +109,13 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
                         nodeAddress -> {
                             backendChannelManager.forward(nodeAddress, session, packet)
                                     .exceptionally(ex -> {
-                                        log.error("Forward failed for session {} msgId {}", 
+                                        log.error("Forward failed for session {} msgId {}",
                                                 session.getSessionId(), packet.getMsgId(), ex);
                                         return null;
                                     });
                         },
                         () -> {
-                            log.error("Node {} not found for session {}", 
+                            log.error("Node {} not found for session {}",
                                     session.getNodeId(), session.getSessionId());
                         }
                 );
@@ -139,7 +139,7 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof IdleStateEvent idleEvent) {
             if (idleEvent.state() == IdleState.READER_IDLE) {
-                log.info("Client idle timeout, closing session: {}", 
+                log.info("Client idle timeout, closing session: {}",
                         session != null ? session.getSessionId() : "null");
                 ctx.close();
             }
@@ -149,7 +149,7 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("Frontend handler error, session: {}", 
+        log.error("Frontend handler error, session: {}",
                 session != null ? session.getSessionId() : "null", cause);
         ctx.close();
     }

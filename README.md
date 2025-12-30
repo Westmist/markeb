@@ -8,6 +8,7 @@
 - **高性能网络层**：Netty 封装，支持 TCP/KCP 传输
 - **异步持久化**：Redis 缓存 + MongoDB 存储 + RocketMQ 异步落盘
 - **服务治理**：服务注册发现、分布式锁、配置中心
+- **热更新支持**：Java Agent 热更新 + Groovy 脚本执行
 - **Spring Boot Starter**：开箱即用，约定大于配置
 
 ## 项目结构
@@ -29,7 +30,8 @@ markeb/
     ├── lock-spring-boot-starter        # 分布式锁
     ├── id-spring-boot-starter          # 分布式 ID
     ├── config-spring-boot-starter      # 配置中心
-    └── transport-spring-boot-starter   # RPC 通信
+    ├── transport-spring-boot-starter   # RPC 通信
+    └── hotswap-spring-boot-starter     # 热更新
 ```
 
 ## 模块说明
@@ -56,6 +58,7 @@ markeb/
 | **id** | 雪花算法 ID 生成 |
 | **config** | 配置中心 |
 | **transport** | 服务间 RPC |
+| **hotswap** | 热更新，Java Agent + Groovy 脚本 |
 
 ## 环境要求
 

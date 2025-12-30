@@ -24,6 +24,7 @@
         <module>config-spring-boot-starter</module>
         <module>id-spring-boot-starter</module>
         <module>actor-spring-boot-starter</module>
+        <module>hotswap-spring-boot-starter</module>
     </modules>
 
 </project>
