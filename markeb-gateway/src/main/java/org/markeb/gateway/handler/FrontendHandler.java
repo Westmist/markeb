@@ -70,6 +70,14 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
             return;
         }
 
+        // 速率限制检查
+        if (!session.tryConsume()) {
+            log.warn("Rate limit exceeded for session {}, dropping msgId {}", session.getSessionId(), msg.getMsgId());
+            // 可选：如果违规太频繁，直接断开连接
+            // ctx.close();
+            return;
+        }
+
         // 收到任何消息都重置丢失计数
         missedHeartbeats.set(0);
         session.updateActiveTime();

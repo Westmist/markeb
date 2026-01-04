@@ -101,6 +101,19 @@ markeb:
       enabled: true
       timeout: 5000
 
+# Resilience4j Rate Limiter Configuration
+resilience4j:
+  ratelimiter:
+    instances:
+      gameAction:
+        limitForPeriod: 10
+        limitRefreshPeriod: 1s
+        timeoutDuration: 0
+      chat:
+        limitForPeriod: 1
+        limitRefreshPeriod: 3s
+        timeoutDuration: 0
+
 logging:
   level:
     root: INFO

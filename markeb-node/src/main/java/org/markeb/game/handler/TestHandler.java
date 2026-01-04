@@ -1,5 +1,6 @@
 package org.markeb.game.handler;
 
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import org.markeb.game.actor.Player;
 import org.markeb.game.entity.TestEntity;
 import org.markeb.net.register.MessageHandler;
@@ -15,6 +16,7 @@ public class TestHandler {
     private static final Logger log = LoggerFactory.getLogger(TestHandler.class);
 
     @MessageHandler
+    @RateLimiter(name = "gameAction")
     public Test.ResTestMessage test(Player player, Test.ReqTestMessage reqTestMessage) {
         log.info("TestHandler test method called with message: {}", reqTestMessage);
 

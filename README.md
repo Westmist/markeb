@@ -6,6 +6,9 @@
 
 - **Actor 并发模型**：支持虚拟线程/平台线程，消息串行化处理
 - **高性能网络层**：Netty 封装，支持 TCP/KCP 传输
+- **安全与限流**：
+    - **双层限流**：网关层 Bucket4j 连接级限流 + 业务层 Resilience4j 精细化限流
+    - **防刷保护**：基于 IP 和 Session 的请求频率控制
 - **异步持久化**：Redis 缓存 + MongoDB 存储 + RocketMQ 异步落盘
 - **服务治理**：服务注册发现、分布式锁、配置中心
 - **热更新支持**：Java Agent 热更新 + Groovy 脚本执行
@@ -110,6 +113,17 @@ spring:
 
 network:
   port: 8000
+
+# 速率限制（Resilience4j）
+resilience4j:
+  ratelimiter:
+    instances:
+      gameAction:
+        limitForPeriod: 10
+        limitRefreshPeriod: 1s
+      chat:
+        limitForPeriod: 1
+        limitRefreshPeriod: 3s
 
 # 其他配置使用默认值，无需显式配置
 # - Actor: 默认启用虚拟线程

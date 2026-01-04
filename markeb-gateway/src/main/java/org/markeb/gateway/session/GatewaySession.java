@@ -1,7 +1,11 @@
 package org.markeb.gateway.session;
 
+import io.github.bucket4j.Bandwidth;
+import io.github.bucket4j.Bucket;
+import io.github.bucket4j.Refill;
 import io.netty.channel.Channel;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -15,6 +19,11 @@ public class GatewaySession {
      * 会话ID（网关内唯一）
      */
     private final int sessionId;
+
+    /**
+     * 限流桶
+     */
+    private final Bucket bucket;
 
     /**
      * 玩家ID（登录后绑定）
@@ -56,6 +65,16 @@ public class GatewaySession {
         this.frontendChannel = frontendChannel;
         this.createTime = LocalDateTime.now();
         this.lastActiveTime = this.createTime;
+        
+        // 初始化限流桶：每秒 50 个请求
+        Bandwidth limit = Bandwidth.classic(50, Refill.greedy(50, Duration.ofSeconds(1)));
+        this.bucket = Bucket.builder()
+                .addLimit(limit)
+                .build();
+    }
+
+    public boolean tryConsume() {
+        return bucket.tryConsume(1);
     }
 
     public int getSessionId() {
