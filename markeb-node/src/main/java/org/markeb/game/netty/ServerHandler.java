@@ -1,18 +1,19 @@
 package org.markeb.game.netty;
 
-
 import org.markeb.game.actor.Player;
+import org.markeb.game.manager.PlayerManager;
 import org.markeb.net.msg.IMessagePool;
 import org.markeb.net.register.IContextHandle;
+import org.markeb.proto.notice.Forward.ForwardNotice;
+import org.markeb.proto.notice.Session.SessionBindNotice;
+import org.markeb.proto.notice.Session.SessionUnbindNotice;
 import com.google.protobuf.Message;
-import io.netty.channel.Channel;
+
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.TooLongFrameException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.markeb.game.netty.ChannelAttributeKey.PLAYER_KEY;
 
 public class ServerHandler extends SimpleChannelInboundHandler<Message> {
 
@@ -29,23 +30,59 @@ public class ServerHandler extends SimpleChannelInboundHandler<Message> {
      */
     @Override
     public void channelRead0(ChannelHandlerContext ctx, Message msg) {
-        Channel channel = ctx.channel();
-        IContextHandle<Player, Message> handler = (IContextHandle<Player, Message>) messagePool.getHandler(msg);
-        if (handler != null) {
-            Player player = channel.attr(PLAYER_KEY).get();
+        if (msg instanceof ForwardNotice) {
+            handleForwardNotice(ctx, (ForwardNotice) msg);
+        } else if (msg instanceof SessionBindNotice) {
+            handleSessionBindNotice(ctx, (SessionBindNotice) msg);
+        } else if (msg instanceof SessionUnbindNotice) {
+            handleSessionUnbindNotice(ctx, (SessionUnbindNotice) msg);
+        } else {
+            // 处理其他系统级消息
+            log.info("Received system message: {} from {}", msg.getClass().getSimpleName(),
+                    ctx.channel().remoteAddress());
+        }
+    }
+
+    private void handleForwardNotice(ChannelHandlerContext ctx, ForwardNotice notice) {
+        String playerId = notice.getPlayerId();
+        Player player = PlayerManager.getInstance().getPlayer(playerId);
+
+        if (player != null) {
             try {
-                Message rep = handler.invoke(player, msg);
-                if (rep != null) {
-                    log.info("Sending response: {} to {}", rep.getClass().getSimpleName(), channel.remoteAddress());
-                    ctx.writeAndFlush(rep);
+                Message innerMsg = messagePool.messageParser().parseFrom(notice.getMsgId(),
+                        notice.getPayload().toByteArray());
+
+                @SuppressWarnings("unchecked")
+                IContextHandle<Player, Message> handler = (IContextHandle<Player, Message>) messagePool
+                        .getHandler(innerMsg);
+                if (handler != null) {
+                    Message rep = handler.invoke(player, innerMsg);
+                    if (rep != null) {
+                        player.send(rep);
+                    }
+                } else {
+                    log.warn("Message handler not found for message: {}", innerMsg.getClass().getSimpleName());
                 }
             } catch (Throwable e) {
-                throw new RuntimeException(e);
+                log.error("Error handling message for player {}", playerId, e);
             }
         } else {
-            log.warn("Message handler not found for message: {}", msg.getClass().getSimpleName());
+            log.warn("Player {} not found on this node", playerId);
         }
-        log.info("Received message: {} from {}", msg.getClass().getSimpleName(), channel.remoteAddress());
+    }
+
+    private void handleSessionBindNotice(ChannelHandlerContext ctx, SessionBindNotice notice) {
+        String playerId = notice.getPlayerId();
+        // 绑定时创建玩家对象，持有 Gateway Channel
+        Player player = new Player(playerId, ctx.channel(), messagePool.messageParser());
+        PlayerManager.getInstance().addPlayer(player);
+        log.info("Player bound: {} from {}", playerId, ctx.channel().remoteAddress());
+    }
+
+    private void handleSessionUnbindNotice(ChannelHandlerContext ctx, SessionUnbindNotice notice) {
+        String playerId = notice.getPlayerId();
+        PlayerManager.getInstance().removePlayer(playerId);
+        log.info("Player unbound: {}", playerId);
     }
 
     /**
@@ -53,10 +90,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<Message> {
      */
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        Channel channel = ctx.channel();
-        Player player = new Player(channel);
-        channel.attr(PLAYER_KEY).set(player);
-        log.info("New connection: {}", channel.remoteAddress());
+        log.info("Gateway connected: {}", ctx.channel().remoteAddress());
     }
 
     /**
@@ -64,9 +98,8 @@ public class ServerHandler extends SimpleChannelInboundHandler<Message> {
      */
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        Channel channel = ctx.channel();
-        log.info("Disconnected: {}", channel.remoteAddress());
-        Player player = channel.attr(PLAYER_KEY).get();
+        log.info("Gateway disconnected: {}", ctx.channel().remoteAddress());
+        // 当网关断开时，可能需要清理该网关下的所有玩家，这里暂且保留
     }
 
     /**
@@ -74,10 +107,9 @@ public class ServerHandler extends SimpleChannelInboundHandler<Message> {
      */
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        // 对于协议错误（如 HTTP 请求发送到游戏端口），只打印简短日志
         if (cause instanceof TooLongFrameException) {
-            log.warn("Invalid protocol from {}: {} (possibly HTTP request to game port)", 
-                ctx.channel().remoteAddress(), cause.getMessage());
+            log.warn("Invalid protocol from {}: {} (possibly HTTP request to game port)",
+                    ctx.channel().remoteAddress(), cause.getMessage());
             ctx.close();
             return;
         }
@@ -91,7 +123,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<Message> {
     @Override
     public void channelWritabilityChanged(ChannelHandlerContext ctx) {
         log.info("Channel writability changed: {} isWritable: {}",
-            ctx.channel().remoteAddress(), ctx.channel().isWritable());
+                ctx.channel().remoteAddress(), ctx.channel().isWritable());
     }
 
     /**
@@ -100,7 +132,7 @@ public class ServerHandler extends SimpleChannelInboundHandler<Message> {
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
         log.info("User event triggered: {} event: {}",
-            ctx.channel().remoteAddress(), evt.getClass().getSimpleName());
+                ctx.channel().remoteAddress(), evt.getClass().getSimpleName());
     }
 
 }

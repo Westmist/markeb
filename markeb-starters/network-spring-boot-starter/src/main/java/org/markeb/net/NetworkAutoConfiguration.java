@@ -1,13 +1,12 @@
 package org.markeb.net;
 
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.socket.SocketChannel;
 import org.markeb.net.config.NetworkProperties;
-import org.markeb.net.handler.ChannelInitializerProvider;
-import org.markeb.net.handler.DefaultChannelInitializer;
 import org.markeb.net.msg.IGameParser;
 import org.markeb.net.msg.IMessagePool;
 import org.markeb.net.msg.ProtoBuffGameMessagePool;
 import org.markeb.net.msg.ProtoBuffParser;
-import org.markeb.net.netty.BusinessHandlerProvider;
 import org.markeb.net.netty.NettyProperties;
 import org.markeb.net.netty.NettyServer;
 import org.markeb.net.register.MessageHandlerRegistrar;
@@ -16,6 +15,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -42,25 +42,16 @@ public class NetworkAutoConfiguration {
         return new MessageHandlerRegistrar(applicationContext);
     }
 
-    @Bean
-    @ConditionalOnBean(BusinessHandlerProvider.class)
-    @ConditionalOnMissingBean(ChannelInitializerProvider.class)
-    public ChannelInitializerProvider channelInitializerProvider(
-        IMessagePool<?> iMessagePool,
-        BusinessHandlerProvider handlerProvider) {
-        return new DefaultChannelInitializer(iMessagePool, handlerProvider);
-    }
-
     @ConditionalOnMissingBean(INetworkServer.class)
-    @ConditionalOnBean(ChannelInitializerProvider.class)
+    @ConditionalOnBean(ChannelInitializer.class)
     @Bean(initMethod = "start", destroyMethod = "stop")
     @ConditionalOnProperty(value = "markeb.network.enabled", matchIfMissing = true)
     public NettyServer nettyServer(
         NetworkProperties networkProperties,
         NettyProperties nettyProperties,
-        ChannelInitializerProvider initializerProvider,
-        ApplicationContext applicationContext) {
-        return new NettyServer(networkProperties, nettyProperties, initializerProvider, applicationContext);
+        ChannelInitializer<SocketChannel> initializer,
+        ApplicationEventPublisher applicationEventPublisher) {
+        return new NettyServer(networkProperties, nettyProperties, initializer, applicationEventPublisher);
     }
 
 }

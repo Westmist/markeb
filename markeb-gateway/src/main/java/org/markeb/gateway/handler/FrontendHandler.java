@@ -27,8 +27,10 @@ public class FrontendHandler extends SimpleChannelInboundHandler<GatewayPacket> 
     /**
      * 心跳消息ID（保留，框架内部使用）
      */
-    private static final int HEARTBEAT_REQUEST_ID = 0;
-    private static final int HEARTBEAT_RESPONSE_ID = 1;
+    private static final int HEARTBEAT_REQUEST_ID = 1;
+
+
+    private static final int HEARTBEAT_RESPONSE_ID = 2;
 
     /**
      * 登录消息ID（需要根据实际协议定义）

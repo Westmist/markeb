@@ -3,7 +3,6 @@ package org.markeb.net.netty;
 import org.markeb.common.event.NetworkStartedEvent;
 import org.markeb.net.INetworkServer;
 import org.markeb.net.config.NetworkProperties;
-import org.markeb.net.handler.ChannelInitializerProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -22,7 +21,7 @@ public class NettyServer implements INetworkServer {
 
     private final NettyProperties nettyProperties;
 
-    private final ChannelInitializerProvider initializerProvider;
+    private final ChannelInitializer<SocketChannel> channelInitializer;
 
     private final ApplicationEventPublisher publisher;
 
@@ -34,11 +33,11 @@ public class NettyServer implements INetworkServer {
 
     public NettyServer(NetworkProperties networkProperties,
                        NettyProperties nettyProperties,
-                       ChannelInitializerProvider initializerProvider,
+                       ChannelInitializer<SocketChannel> channelInitializer,
                        ApplicationEventPublisher publisher) {
         this.networkProperties = networkProperties;
         this.nettyProperties = nettyProperties;
-        this.initializerProvider = initializerProvider;
+        this.channelInitializer = channelInitializer;
         this.publisher = publisher;
     }
 
@@ -59,8 +58,7 @@ public class NettyServer implements INetworkServer {
                     .childOption(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
                     .childOption(ChannelOption.WRITE_BUFFER_WATER_MARK, writeBufferWaterMark());
 
-            ChannelInitializer<SocketChannel> initializer = initializerProvider.buildInitializer(nettyProperties);
-            bootstrap.childHandler(initializer);
+            bootstrap.childHandler(channelInitializer);
 
             ChannelFuture channelFuture = bootstrap.bind(networkProperties.getPort()).sync();
             this.serverChannel = channelFuture.channel();
@@ -94,4 +92,3 @@ public class NettyServer implements INetworkServer {
     }
 
 }
-
